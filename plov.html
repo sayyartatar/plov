@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Плов в скороварке — Mini-App</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { -webkit-tap-highlight-color: transparent; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    .step-done { opacity: 0.45; }
+    .step-done .step-title { text-decoration: line-through; }
+    .table-wrapper {
+      overflow: auto;
+      max-inline-size: 100%;
+      container-type: inline-size;
+    }
+    .table-wrapper table {
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+    .table-wrapper thead {
+      position: sticky;
+      inset-block-start: 0;
+      z-index: 1;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen pb-20 select-none">
+
+  <!-- ВЕРХНЯЯ ПАНЕЛЬ: ВЫБОР РИСА И ИТОГИ -->
+  <header class="sticky top-0 z-30 bg-slate-900/95 backdrop-blur border-b border-slate-800 px-3 pt-2.5 pb-2 shadow-lg">
+    <div class="max-w-md mx-auto">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2">
+          <span class="text-xl">🍲</span>
+          <h1 class="font-bold text-base tracking-tight">Плов: Скороварка</h1>
+        </div>
+        <div class="flex items-center gap-1.5 bg-slate-800 rounded-lg px-2 py-1 border border-slate-700">
+          <label for="customRiceInput" class="text-xs text-slate-400">Рис (г):</label>
+          <input id="customRiceInput" type="number" step="50" min="50" max="10000"
+                 class="w-16 bg-transparent text-amber-400 font-bold text-sm text-right focus:outline-none"
+                 value="1250" oninput="setRiceWeight(this.value, true)" onblur="normalizeRiceInput()">
+        </div>
+      </div>
+
+      <!-- Быстрые кнопки веса риса -->
+      <div class="grid grid-cols-6 gap-1 mb-2" id="presetButtons">
+        <button onclick="setRiceWeight(500)" data-val="500" class="preset-btn py-1.5 rounded text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700">500г</button>
+        <button onclick="setRiceWeight(750)" data-val="750" class="preset-btn py-1.5 rounded text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700">750г</button>
+        <button onclick="setRiceWeight(1000)" data-val="1000" class="preset-btn py-1.5 rounded text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700">1 кг</button>
+        <button onclick="setRiceWeight(1250)" data-val="1250" class="preset-btn py-1.5 rounded text-xs font-semibold bg-amber-500 text-slate-950 border border-amber-400">1.25кг</button>
+        <button onclick="setRiceWeight(1500)" data-val="1500" class="preset-btn py-1.5 rounded text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700">1.5кг</button>
+        <button onclick="setRiceWeight(2000)" data-val="2000" class="preset-btn py-1.5 rounded text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700">2 кг</button>
+      </div>
+
+      <!-- Сводка по выходу -->
+      <div class="grid grid-cols-3 gap-1.5 bg-slate-950/80 rounded-lg p-1.5 border border-slate-800/80 text-center">
+        <div>
+          <div class="text-[10px] text-slate-400 uppercase">Сухая закладка</div>
+          <div class="text-xs font-bold text-slate-200" id="statDry">≈ 4.41 кг</div>
+        </div>
+        <div class="border-x border-slate-800">
+          <div class="text-[10px] text-slate-400 uppercase">Выход плова</div>
+          <div class="text-xs font-bold text-emerald-400" id="statYield">≈ 6.9 кг</div>
+        </div>
+        <div>
+          <div class="text-[10px] text-slate-400 uppercase">Порции (300г)</div>
+          <div class="text-xs font-bold text-amber-400" id="statPortions">≈ 23 шт.</div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ОСНОВНОЙ КОНТЕНТ -->
+  <main class="max-w-md mx-auto px-3 pt-3">
+
+    <!-- ВКЛАДКА 1: ЧЕК-ЛИСТ ПРОДУКТОВ -->
+    <section id="tab-checklist" class="space-y-3">
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex bg-slate-900 p-0.5 rounded-lg border border-slate-800 text-xs">
+          <button onclick="setInventoryFilter('all')" id="flt-all" class="px-2.5 py-1 rounded-md bg-slate-800 text-white font-medium">Все</button>
+          <button onclick="setInventoryFilter('missing')" id="flt-missing" class="px-2.5 py-1 rounded-md text-slate-400 font-medium">Докупить (<span id="missingCount">0</span>)</button>
+        </div>
+        <div class="flex gap-1.5">
+          <button onclick="copyShoppingList()" class="px-2.5 py-1 bg-amber-500/15 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-medium active:scale-95 transition">
+            📋 Скопировать список
+          </button>
+          <button onclick="resetInventory()" class="px-2 py-1 bg-slate-800 text-slate-400 rounded-lg text-xs active:scale-95" title="Сбросить галочки">
+            ↺
+          </button>
+        </div>
+      </div>
+
+      <div id="inventoryContainer" class="space-y-2"></div>
+    </section>
+
+    <!-- ВКЛАДКА 2: ПОШАГОВЫЙ РЕЦЕПТ -->
+    <section id="tab-steps" class="hidden space-y-3">
+      <!-- Фильтр этапов -->
+      <div class="flex items-center justify-between gap-1 overflow-x-auto no-scrollbar pb-1">
+        <div class="flex gap-1">
+          <button onclick="setStageFilter('all')" data-stage="all" class="stage-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-amber-500 text-slate-950 shrink-0">Все (24)</button>
+          <button onclick="setStageFilter('Подготовка')" data-stage="Подготовка" class="stage-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 text-slate-300 shrink-0">1. Подготовка (7)</button>
+          <button onclick="setStageFilter('Зирвак')" data-stage="Зирвак" class="stage-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 text-slate-300 shrink-0">2. Зирвак (10)</button>
+          <button onclick="setStageFilter('Рис')" data-stage="Рис" class="stage-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 text-slate-300 shrink-0">3. Рис и финиш (7)</button>
+        </div>
+        <button onclick="resetSteps()" class="px-2 py-1 bg-slate-800 text-slate-400 rounded-lg text-xs shrink-0">↺ Сброс</button>
+      </div>
+
+      <!-- Быстрые таймеры -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-2.5 flex items-center justify-between">
+        <div class="text-xs">
+          <span class="text-slate-400 block text-[10px] uppercase">Таймер этапа</span>
+          <span id="timerDisplay" class="font-mono font-bold text-base text-amber-400">00:00</span>
+        </div>
+        <div class="flex gap-1.5">
+          <button onclick="startTimer(15, 'Зирвак')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs active:scale-95">15м Зирвак</button>
+          <button onclick="startTimer(6, 'Рис')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs active:scale-95">6м Рис</button>
+          <button onclick="startTimer(10, 'Пар')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs active:scale-95">10м Пар</button>
+          <button onclick="stopTimer()" class="px-2 py-1 bg-rose-950/60 text-rose-300 border border-rose-800/50 rounded text-xs active:scale-95" title="Остановить таймер">✕</button>
+        </div>
+      </div>
+
+      <div id="stepsContainer" class="space-y-2"></div>
+    </section>
+
+    <!-- ВКЛАДКА 3: КОМПАКТ-ТАБЛИЦА НА 1 ЭКРАН -->
+    <section id="tab-table" class="hidden space-y-2.5">
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex bg-slate-900 p-0.5 rounded-lg border border-slate-800 text-xs">
+          <button onclick="setTableMode('compact')" id="tbl-compact" class="px-2.5 py-1 rounded-md bg-slate-800 text-white font-medium">Шпаргалка (13)</button>
+          <button onclick="setTableMode('full')" id="tbl-full" class="px-2.5 py-1 rounded-md text-slate-400 font-medium">Все 24 шага</button>
+        </div>
+        <button onclick="resetSteps()" class="px-2 py-1 bg-slate-800 text-slate-400 rounded-lg text-xs">↺ Сброс</button>
+      </div>
+
+      <div tabindex="0" role="region" aria-label="Компактная таблица приготовления плова" class="table-wrapper bg-slate-900 border border-slate-800 rounded-xl">
+        <table class="w-full text-left text-xs">
+          <thead>
+            <tr class="bg-slate-800 text-slate-300 border-b border-slate-700 text-[11px] uppercase">
+              <th class="py-2 pl-2.5 pr-1 w-10">#</th>
+              <th class="py-2 px-2">Действие и прим.</th>
+              <th class="py-2 pl-1 pr-2.5 text-right w-36">Продукты</th>
+            </tr>
+          </thead>
+          <tbody id="compactTableBody" class="divide-y divide-slate-800/70"></tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- УВЕДОМЛЕНИЕ (ТОСТ) -->
+  <div id="toast" class="fixed bottom-16 left-1/2 -translate-x-1/2 bg-emerald-600 text-white text-xs font-medium px-3 py-1.5 rounded-full shadow-lg opacity-0 pointer-events-none transition-opacity duration-200 z-50">
+    Скопировано!
+  </div>
+
+  <!-- НИЖНЯЯ НАВИГАЦИЯ -->
+  <nav class="fixed bottom-0 inset-x-0 z-40 bg-slate-900/95 backdrop-blur border-t border-slate-800">
+    <div class="max-w-md mx-auto grid grid-cols-3 h-14">
+      <button onclick="switchTab('checklist')" id="nav-checklist" class="flex flex-col items-center justify-center text-amber-400 font-medium text-xs">
+        <span class="text-base leading-none mb-0.5">☑️</span>
+        <span>Наличие</span>
+      </button>
+      <button onclick="switchTab('steps')" id="nav-steps" class="flex flex-col items-center justify-center text-slate-400 font-medium text-xs">
+        <span class="text-base leading-none mb-0.5">🔥</span>
+        <span>Пошагово</span>
+      </button>
+      <button onclick="switchTab('table')" id="nav-table" class="flex flex-col items-center justify-center text-slate-400 font-medium text-xs">
+        <span class="text-base leading-none mb-0.5">📋</span>
+        <span>Таблица</span>
+      </button>
+    </div>
+  </nav>
+
+  <script>
+    const BASE_RICE = 1250;
+    let currentRice = Number(localStorage.getItem('plov_rice')) || 1250;
+    let checkedItems = JSON.parse(localStorage.getItem('plov_inventory') || '{}');
+    let completedSteps = JSON.parse(localStorage.getItem('plov_steps') || '{}');
+    let inventoryFilter = 'all';
+    let stageFilter = 'all';
+    let tableMode = localStorage.getItem('plov_table_mode') || 'compact';
+    let timerInterval = null;
+    let toastTimeout = null;
+
+    // База ингредиентов для чек-листа (привязана к 1250 г риса)
+    const INGREDIENTS = [
+      { id: 'rice', cat: 'Основные продукты', name: 'Рис басмати сухой', base: 1250, unit: 'г', note: () => 'промыть 5–8 раз' },
+      { id: 'meat', cat: 'Основные продукты', name: 'Мясо (говядина / индейка)', base: 1250, unit: 'г', note: () => 'кубик 2×2 см' },
+      { id: 'carrot', cat: 'Основные продукты', name: 'Морковь', base: 1250, unit: 'г', note: () => 'соломка ср. толщины' },
+      { id: 'chickpea', cat: 'Основные продукты', name: 'Нут сухой', base: 250, unit: 'г', note: () => 'замочить на 3–12 ч' },
+      { id: 'onion', cat: 'Основные продукты', name: 'Лук репчатый', base: 250, unit: 'г', note: () => 'полукольца' },
+      { id: 'oil', cat: 'Основные продукты', name: 'Масло растительное', base: 250, unit: 'мл', note: () => 'в рис (шаг 20)' },
+      { id: 'raisins', cat: 'Специи и добавки', name: 'Изюм', base: 125, unit: 'г', note: () => 'в зирвак поверх моркови' },
+      { id: 'garlic', cat: 'Специи и добавки', name: 'Чеснок (целые головки)', base: 2.5, unit: 'гол.', altBase: 75, altUnit: 'г', note: () => 'снять верхнюю шелуху' },
+      { id: 'chili', cat: 'Специи и добавки', name: 'Перец чили (стручки, опц.)', base: 25, unit: 'г', note: () => `${fmtPods(2, 3)} целых стручка` },
+      { id: 'cumin', cat: 'Специи и добавки', name: 'Зира', base: 10, unit: 'г', note: () => 'в зирвак к мясу' },
+      { id: 'turmeric', cat: 'Специи и добавки', name: 'Куркума', base: 2.5, unit: 'г', note: () => 'в зирвак к мясу' },
+      { id: 'eggs', cat: 'Специи и добавки', name: 'Яйца перепелиные (опц.)', base: 12, unit: 'шт.', roundInt: true, note: () => 'отварить вкрутую (10 мин)' },
+      { id: 'salt_total', cat: 'Соль и вода (суммарно)', name: 'Соль (всего на 3 этапа)', base: 110, unit: 'г', note: () => `нут ${fmt(5, 'г')} + рис ${fmt(75, 'г')} + зирвак ${fmt(30, 'г')}` },
+      { id: 'water_total', cat: 'Соль и вода (суммарно)', name: 'Вода (всего на 3 этапа)', base: 5.5, unit: 'л', note: () => `нут ${fmt(0.5, 'л')} + рис ${fmt(3.75, 'л')} + зирвак ${fmt(1.25, 'л')}` }
+    ];
+
+    // Все 24 шага
+    const STEPS = [
+      { num: 1, stage: 'Подготовка', action: 'Замочить нут в холодной воде с солью', time: '3–12 ч', warn: 'Минимум 3–4 ч, идеал 12 ч', items: [{ name: 'Нут сухой', val: 250, unit: 'г' }, { name: 'Вода холодная', val: 0.5, unit: 'л' }, { name: 'Соль', val: 5, unit: 'г' }] },
+      { num: 2, stage: 'Подготовка', action: 'Промыть рис 5–8 раз до прозрачной воды, затем замочить в холодной воде с солью', time: '2 часа', warn: 'Вода холодная', items: [{ name: 'Рис басмати', val: 1250, unit: 'г' }, { name: 'Вода холодная', val: 3.75, unit: 'л' }, { name: 'Соль', val: 75, unit: 'г' }] },
+      { num: 3, stage: 'Подготовка', action: 'Нарезать мясо кубиками 2×2 см', time: '5–7 мин', warn: '', items: [{ name: 'Мясо', val: 1250, unit: 'г' }] },
+      { num: 4, stage: 'Подготовка', action: 'Нарезать лук полукольцами', time: '2–3 мин', warn: '', items: [{ name: 'Лук репчатый', val: 250, unit: 'г' }] },
+      { num: 5, stage: 'Подготовка', action: 'Нарезать морковь соломкой средней толщины', time: '5–7 мин', warn: '', items: [{ name: 'Морковь', val: 1250, unit: 'г' }] },
+      { num: 6, stage: 'Подготовка', action: 'Очистить чеснок от верхней грубой шелухи, оставить головки целыми', time: '1 мин', warn: '', items: [{ name: 'Чеснок', val: 2.5, unit: 'гол.' }, { name: 'Вес ≈', val: 75, unit: 'г' }] },
+      { num: 7, stage: 'Подготовка', action: 'Отварить перепелиные яйца вкрутую (опционально, для подачи)', time: '10 мин', warn: '', items: [{ name: 'Яйца перепел.', val: 12, unit: 'шт.', roundInt: true }] },
+      { num: 8, stage: 'Зирвак', action: 'Слить воду с нута. В чашу скороварки налить воду и растворить соль', time: '1 мин', warn: 'Вода холодная или комнатная', items: [{ name: 'Вода в зирвак', val: 1.25, unit: 'л' }, { name: 'Соль в зирвак', val: 30, unit: 'г' }] },
+      { num: 9, stage: 'Зирвак', action: 'Заложить нарезанное мясо первым слоем', time: '', warn: '⚠️ Не перемешивать при закладке', items: [{ name: 'Мясо', val: 1250, unit: 'г' }] },
+      { num: 10, stage: 'Зирвак', action: 'Заложить набухший нут (без воды) поверх мяса', time: '', warn: '⚠️ Не перемешивать', items: [{ name: 'Нут (слитый)', val: 250, unit: 'г' }] },
+      { num: 11, stage: 'Зирвак', action: 'Заложить нарезанный лук третьим слоем', time: '', warn: '⚠️ Не перемешивать', items: [{ name: 'Лук', val: 250, unit: 'г' }] },
+      { num: 12, stage: 'Зирвак', action: 'Всыпать специи, слегка перемешать только с мясом и луком', time: '', warn: '⚠️ Не трогать верхние слои', items: [{ name: 'Зира', val: 10, unit: 'г' }, { name: 'Куркума', val: 2.5, unit: 'г' }] },
+      { num: 13, stage: 'Зирвак', action: 'Разложить морковь ровным слоем сверху', time: '', warn: '⛔ Морковь НЕ перемешивать!', items: [{ name: 'Морковь', val: 1250, unit: 'г' }] },
+      { num: 14, stage: 'Зирвак', action: 'Вдавить в морковь целые головки чеснока и стручки чили (опц.)', time: '', warn: '', items: [{ name: 'Чеснок', val: 2.5, unit: 'гол.' }, { name: 'Чили', val: 25, unit: 'г' }] },
+      { num: 15, stage: 'Зирвак', action: 'Посыпать сверху изюмом равномерно', time: '', warn: '', items: [{ name: 'Изюм', val: 125, unit: 'г' }] },
+      { num: 16, stage: 'Зирвак', action: 'Закрыть крышку, готовить под давлением (режим «Мясо/Тушение»)', time: '15 мин', warn: 'Давление 0,7–0,8 бар', items: [] },
+      { num: 17, stage: 'Зирвак', action: 'Сбросить давление (быстрый сброс), открыть, временно вынуть чеснок и перец чили', time: '1–2 мин', warn: '', items: [] },
+      { num: 18, stage: 'Рис', action: 'Слить воду с риса. Убедиться, что зирвак кипит (при необходимости включить нагрев)', time: '1 мин', warn: '⛔ Зирвак должен кипеть', items: [] },
+      { num: 19, stage: 'Рис', action: 'Выложить замоченный рис ровным слоем поверх моркови', time: '', warn: '⛔ НЕ перемешивать!', items: [{ name: 'Рис (мокрый ≈)', val: 1812, unit: 'г' }] },
+      { num: 20, stage: 'Рис', action: 'Залить растительным маслом равномерно по поверхности риса', time: '', warn: '', items: [{ name: 'Масло раст.', val: 250, unit: 'мл' }] },
+      { num: 21, stage: 'Рис', action: 'Вернуть сверху чеснок, перец чили и перепелиные яйца (опц.)', time: '', warn: '', items: [] },
+      { num: 22, stage: 'Рис', action: 'Закрыть крышку, готовить под давлением (режим «Рис/Крупы»)', time: '6 мин', warn: 'Давление 0,7–0,8 бар', items: [] },
+      { num: 23, stage: 'Рис', action: 'Естественный сброс давления — крышку НЕ открывать!', time: '10 мин', warn: '⛔ Критично для рассыпчатости', items: [] },
+      { num: 24, stage: 'Финиш', action: 'Открыть крышку, убрать чеснок и чили, аккуратно перемешать плов снизу вверх', time: '1–2 мин', warn: '', items: [] }
+    ];
+
+    // Компактная шпаргалка (13 сгруппированных строк точь-в-точь из таблицы)
+    const COMPACT_ROWS = [
+      { header: '1. ПОДГОТОВКА' },
+      { nums: [1], label: '1', action: 'Замочить нут в холодной воде с солью', time: '3–12 ч (идеал 12 ч)', warn: '', items: [{ name: 'Нут', val: 250, unit: 'г' }, { name: 'Вода', val: 0.5, unit: 'л' }, { name: 'Соль', val: 5, unit: 'г' }] },
+      { nums: [2], label: '2', action: 'Промыть рис 5–8 раз до прозрачности, замочить', time: '2 ч (вода холодная)', warn: '', items: [{ name: 'Рис басмати', val: 1250, unit: 'г' }, { name: 'Вода', val: 3.75, unit: 'л' }, { name: 'Соль', val: 75, unit: 'г' }] },
+      { nums: [3, 4, 5], label: '3–5', action: 'Нарезка базы (мясо кубик 2×2 см, лук полукольца, морковь соломка)', time: '~15 мин суммарно', warn: '', items: [{ name: 'Мясо', val: 1250, unit: 'г' }, { name: 'Лук', val: 250, unit: 'г' }, { name: 'Морковь', val: 1250, unit: 'г' }] },
+      { nums: [6, 7], label: '6–7', action: 'Чеснок целыми (снять шелуху) и яйца вкрутую (опц.)', time: '10 мин (яйца)', warn: '', items: [{ name: 'Чеснок', val: 2.5, unit: 'гол.', altVal: 75, altUnit: 'г' }, { name: 'Яйца перепел.', val: 12, unit: 'шт.', roundInt: true }] },
+      { header: '2. ЗИРВАК (Закладка слоями)' },
+      { nums: [8], label: '8', action: 'Слить нут. Налить в чашу воду, растворить соль', time: '1 мин (вода холодная/комн.)', warn: '', items: [{ name: 'Вода', val: 1.25, unit: 'л' }, { name: 'Соль', val: 30, unit: 'г' }] },
+      { nums: [9, 10, 11], label: '9–11', action: 'Выложить слоями: мясо → нут → лук', time: '', warn: '⚠️ Не перемешивать при закладке', items: [{ name: 'Мясо', val: 1250, unit: 'г' }, { name: 'Нут (слитый)', val: 250, unit: 'г' }, { name: 'Лук', val: 250, unit: 'г' }] },
+      { nums: [12], label: '12', action: 'Всыпать специи, слегка перемешать с мясом и луком', time: '', warn: '⚠️ Не трогать верхние слои', items: [{ name: 'Зира', val: 10, unit: 'г' }, { name: 'Куркума', val: 2.5, unit: 'г' }] },
+      { nums: [13, 14, 15], label: '13–15', action: 'Разложить морковь, вдавить чеснок и чили, посыпать изюмом', time: '', warn: '⛔ Морковь не перемешивать!', items: [{ name: 'Морковь', val: 1250, unit: 'г' }, { name: 'Чеснок', val: 2.5, unit: 'гол.' }, { name: 'Чили', val: 25, unit: 'г' }, { name: 'Изюм', val: 125, unit: 'г' }] },
+      { nums: [16, 17], label: '16–17', action: 'Готовить под давлением, затем сбросить пар и вынуть чеснок/чили', time: '15 мин + 1–2 мин сброс', warn: 'Режим «Мясо/Тушение» (0,7–0,8 бар)', items: [] },
+      { header: '3. РИС И ФИНИШ' },
+      { nums: [18, 19, 20, 21], label: '18–21', action: 'Слить рис. На кипящий зирвак ровным слоем выложить рис, залить маслом, вернуть чеснок/чили/яйца', time: '', warn: '⛔ Не перемешивать! Зирвак должен кипеть', items: [{ name: 'Рис (мокрый)', val: 1812, unit: 'г' }, { name: 'Масло раст.', val: 250, unit: 'мл' }] },
+      { nums: [22], label: '22', action: 'Готовить под давлением', time: '6 мин', warn: 'Режим «Рис/Крупы» (0,7–0,8 бар)', items: [] },
+      { nums: [23], label: '23', action: 'Естественный сброс давления (крышку не открывать)', time: '10 мин', warn: '⛔ Критично для рассыпчатости', items: [] },
+      { nums: [24], label: '24', action: 'Финиш: убрать чеснок и чили, перемешать снизу вверх', time: '1–2 мин', warn: '', items: [] }
+    ];
+
+    function fmt(num, unit, roundInt = false) {
+      const scaled = num * (currentRice / BASE_RICE);
+      if (roundInt) return Math.max(1, Math.round(scaled)) + ' ' + unit;
+      if (unit === 'л') return scaled.toFixed(2).replace(/\.?0+$/, '') + ' л';
+      if (scaled >= 100) return Math.round(scaled) + ' ' + unit;
+      if (scaled >= 10) return (Math.round(scaled * 10) / 10) + ' ' + unit;
+      return (Math.round(scaled * 100) / 100) + ' ' + unit;
+    }
+
+    function fmtPods(minPods, maxPods) {
+      const k = currentRice / BASE_RICE;
+      const a = Math.max(1, Math.round(minPods * k));
+      const b = Math.max(a, Math.round(maxPods * k));
+      return a === b ? `${a}` : `${a}–${b}`;
+    }
+
+    function setRiceWeight(val, fromInput = false) {
+      const parsed = parseFloat(val);
+      if (!parsed || parsed < 50) return;
+      currentRice = Math.min(10000, parsed);
+      localStorage.setItem('plov_rice', currentRice);
+
+      if (!fromInput || parsed > 10000) {
+        document.getElementById('customRiceInput').value = currentRice;
+      }
+
+      document.querySelectorAll('.preset-btn').forEach(btn => {
+        const isActive = Number(btn.dataset.val) === currentRice;
+        btn.className = `preset-btn py-1.5 rounded text-xs font-semibold border transition ${
+          isActive ? 'bg-amber-500 text-slate-950 border-amber-400' : 'bg-slate-800 text-slate-300 border-slate-700'
+        }`;
+      });
+
+      const k = currentRice / BASE_RICE;
+      document.getElementById('statDry').textContent = `≈ ${(4.41 * k).toFixed(2)} кг`;
+      document.getElementById('statYield').textContent = `≈ ${(6.9 * k).toFixed(1)} кг`;
+      document.getElementById('statPortions').textContent = `≈ ${Math.max(1, Math.round(23 * k))} шт.`;
+
+      renderInventory();
+      renderSteps();
+      renderCompactTable();
+    }
+
+    function normalizeRiceInput() {
+      const input = document.getElementById('customRiceInput');
+      const parsed = parseFloat(input.value);
+      if (!parsed || parsed < 50) {
+        input.value = currentRice;
+      } else if (parsed > 10000) {
+        setRiceWeight(10000);
+      }
+    }
+
+    function renderInventory() {
+      const container = document.getElementById('inventoryContainer');
+      const missingTotal = INGREDIENTS.filter(i => !checkedItems[i.id]).length;
+      document.getElementById('missingCount').textContent = missingTotal;
+
+      const categories = [...new Set(INGREDIENTS.map(i => i.cat))];
+      let html = '';
+
+      categories.forEach(cat => {
+        const items = INGREDIENTS.filter(i => i.cat === cat && (inventoryFilter === 'all' || !checkedItems[i.id]));
+        if (!items.length) return;
+
+        html += `<div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+          <div class="bg-slate-800/60 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400">${cat}</div>
+          <div class="divide-y divide-slate-800/60">`;
+
+        items.forEach(item => {
+          const isChecked = !!checkedItems[item.id];
+          const mainQty = fmt(item.base, item.unit, item.roundInt);
+          const altQty = item.altBase ? ` (~${fmt(item.altBase, item.altUnit)})` : '';
+          const noteText = typeof item.note === 'function' ? item.note() : item.note;
+
+          html += `
+            <div onclick="toggleInventory('${item.id}')" class="flex items-center justify-between px-3 py-2.5 cursor-pointer active:bg-slate-800/50 transition ${isChecked ? 'opacity-45' : ''}">
+              <div class="flex items-center gap-2.5 pr-2">
+                <div class="w-5 h-5 rounded flex items-center justify-center border ${isChecked ? 'bg-emerald-500 border-emerald-400 text-slate-950' : 'border-slate-600 bg-slate-950'} text-xs font-bold shrink-0">
+                  ${isChecked ? '✓' : ''}
+                </div>
+                <div>
+                  <div class="text-sm font-medium ${isChecked ? 'line-through text-slate-400' : 'text-slate-100'}">${item.name}</div>
+                  <div class="text-[11px] text-slate-400">${noteText}</div>
+                </div>
+              </div>
+              <div class="text-right shrink-0">
+                <span class="inline-block bg-slate-800 text-amber-400 font-bold text-xs px-2 py-1 rounded border border-slate-700">${mainQty}${altQty}</span>
+              </div>
+            </div>`;
+        });
+
+        html += `</div></div>`;
+      });
+
+      container.innerHTML = html || `<div class="text-center py-8 text-slate-400 text-sm">🎉 Все продукты в наличии!</div>`;
+    }
+
+    function toggleInventory(id) {
+      checkedItems[id] = !checkedItems[id];
+      localStorage.setItem('plov_inventory', JSON.stringify(checkedItems));
+      renderInventory();
+    }
+
+    function setInventoryFilter(flt) {
+      inventoryFilter = flt;
+      document.getElementById('flt-all').className = `px-2.5 py-1 rounded-md text-xs font-medium ${flt === 'all' ? 'bg-slate-800 text-white' : 'text-slate-400'}`;
+      document.getElementById('flt-missing').className = `px-2.5 py-1 rounded-md text-xs font-medium ${flt === 'missing' ? 'bg-slate-800 text-white' : 'text-slate-400'}`;
+      renderInventory();
+    }
+
+    function resetInventory() {
+      checkedItems = {};
+      localStorage.setItem('plov_inventory', '{}');
+      renderInventory();
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.classList.remove('opacity-0');
+      clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => toast.classList.add('opacity-0'), 2200);
+    }
+
+    async function copyShoppingList() {
+      const missing = INGREDIENTS.filter(i => !checkedItems[i.id]);
+      const list = missing.length ? missing : INGREDIENTS;
+      const header = `🛒 Плов (на ${currentRice} г риса, выход ≈ ${(6.9 * currentRice / BASE_RICE).toFixed(1)} кг):\n`;
+      const lines = list.map(i => {
+        const mainQty = fmt(i.base, i.unit, i.roundInt);
+        const altQty = i.altBase ? ` (~${fmt(i.altBase, i.altUnit)})` : '';
+        return `• ${i.name}: ${mainQty}${altQty}`;
+      }).join('\n');
+      const text = header + lines;
+
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          throw new Error('Clipboard API unavailable');
+        }
+      } catch (e) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        try { document.execCommand('copy'); } catch (_) {}
+        document.body.removeChild(ta);
+      }
+      showToast(missing.length ? 'Список недостающего скопирован!' : 'Полный список скопирован!');
+    }
+
+    function renderSteps() {
+      const container = document.getElementById('stepsContainer');
+      const filtered = STEPS.filter(s => stageFilter === 'all' || s.stage === stageFilter || (stageFilter === 'Рис' && s.stage === 'Финиш'));
+
+      container.innerHTML = filtered.map(s => {
+        const isDone = !!completedSteps[s.num];
+        const badges = s.items.map(it => `<span class="bg-amber-500/15 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded text-xs font-semibold">${it.name}: ${fmt(it.val, it.unit, it.roundInt)}</span>`).join('');
+        const timeBadge = s.time ? `<span class="bg-sky-500/15 text-sky-300 border border-sky-500/30 px-1.5 py-0.5 rounded text-[11px] font-medium">🕒 ${s.time}</span>` : '';
+        const warnBadge = s.warn ? `<span class="bg-rose-500/15 text-rose-300 border border-rose-500/30 px-1.5 py-0.5 rounded text-[11px] font-medium">${s.warn}</span>` : '';
+
+        return `
+          <div onclick="toggleStep(${s.num})" class="bg-slate-900 border border-slate-800 rounded-xl p-3 cursor-pointer active:bg-slate-800/60 transition ${isDone ? 'step-done' : ''}">
+            <div class="flex items-start justify-between gap-2 mb-1.5">
+              <div class="flex items-center gap-2">
+                <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${isDone ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-amber-400 border border-slate-700'}">
+                  ${isDone ? '✓' : s.num}
+                </span>
+                <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">${s.stage}</span>
+              </div>
+              <div class="flex flex-wrap gap-1 justify-end">${timeBadge}</div>
+            </div>
+            <div class="step-title text-sm font-medium text-slate-100 mb-2 leading-snug">${s.action}</div>
+            ${(badges || warnBadge) ? `<div class="flex flex-wrap gap-1.5 items-center">${badges}${warnBadge}</div>` : ''}
+          </div>`;
+      }).join('');
+    }
+
+    function toggleStep(num) {
+      completedSteps[num] = !completedSteps[num];
+      localStorage.setItem('plov_steps', JSON.stringify(completedSteps));
+      renderSteps();
+      renderCompactTable();
+    }
+
+    function toggleStepGroup(nums) {
+      const allDone = nums.every(n => !!completedSteps[n]);
+      nums.forEach(n => { completedSteps[n] = !allDone; });
+      localStorage.setItem('plov_steps', JSON.stringify(completedSteps));
+      renderSteps();
+      renderCompactTable();
+    }
+
+    function setStageFilter(stage) {
+      stageFilter = stage;
+      document.querySelectorAll('.stage-btn').forEach(btn => {
+        const active = btn.dataset.stage === stage;
+        btn.className = `stage-btn px-2.5 py-1 rounded-lg text-xs font-medium shrink-0 ${active ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300'}`;
+      });
+      renderSteps();
+    }
+
+    function setTableMode(mode) {
+      tableMode = mode;
+      localStorage.setItem('plov_table_mode', mode);
+      document.getElementById('tbl-compact').className = `px-2.5 py-1 rounded-md text-xs font-medium ${mode === 'compact' ? 'bg-slate-800 text-white' : 'text-slate-400'}`;
+      document.getElementById('tbl-full').className = `px-2.5 py-1 rounded-md text-xs font-medium ${mode === 'full' ? 'bg-slate-800 text-white' : 'text-slate-400'}`;
+      renderCompactTable();
+    }
+
+    function resetSteps() {
+      completedSteps = {};
+      localStorage.setItem('plov_steps', '{}');
+      renderSteps();
+      renderCompactTable();
+    }
+
+    function renderCompactTable() {
+      const tbody = document.getElementById('compactTableBody');
+
+      if (tableMode === 'compact') {
+        tbody.innerHTML = COMPACT_ROWS.map(row => {
+          if (row.header) {
+            return `<tr class="bg-slate-800/70"><td colspan="3" class="py-1.5 px-2.5 text-[11px] font-bold uppercase tracking-wider text-amber-400">${row.header}</td></tr>`;
+          }
+          const isDone = row.nums.every(n => !!completedSteps[n]);
+          const itemsText = row.items.length
+            ? row.items.map(it => {
+                const main = fmt(it.val, it.unit, it.roundInt);
+                const alt = it.altVal ? ` (~${fmt(it.altVal, it.altUnit)})` : '';
+                return `<div><span class="text-slate-400">${it.name}:</span> <b class="text-amber-400">${main}${alt}</b></div>`;
+              }).join('')
+            : `<span class="text-slate-500">—</span>`;
+          const metaParts = [];
+          if (row.time) metaParts.push(`🕒 ${row.time}`);
+          if (row.warn) metaParts.push(`<span class="text-rose-400">${row.warn}</span>`);
+
+          return `
+            <tr onclick="toggleStepGroup([${row.nums.join(',')}])" class="cursor-pointer active:bg-slate-800/50 ${isDone ? 'opacity-40 line-through' : ''}">
+              <td class="py-2 pl-2.5 pr-1 font-bold text-amber-400 align-top whitespace-nowrap">${row.label}</td>
+              <td class="py-2 px-2 align-top">
+                <div class="font-medium text-slate-100 leading-snug">${row.action}</div>
+                ${metaParts.length ? `<div class="text-[10px] text-slate-400 mt-0.5">${metaParts.join(' · ')}</div>` : ''}
+              </td>
+              <td class="py-2 pl-1 pr-2.5 text-right align-top text-[11px] leading-tight">${itemsText}</td>
+            </tr>`;
+        }).join('');
+        return;
+      }
+
+      let lastStage = '';
+      tbody.innerHTML = STEPS.map(s => {
+        let stageHeader = '';
+        if (s.stage !== lastStage) {
+          lastStage = s.stage;
+          const title = s.stage === 'Подготовка' ? '1. ПОДГОТОВКА' : s.stage === 'Зирвак' ? '2. ЗИРВАК (Закладка слоями)' : s.stage === 'Рис' ? '3. РИС' : '4. ФИНИШ';
+          stageHeader = `<tr class="bg-slate-800/70"><td colspan="3" class="py-1.5 px-2.5 text-[11px] font-bold uppercase tracking-wider text-amber-400">${title}</td></tr>`;
+        }
+        const isDone = !!completedSteps[s.num];
+        const itemsText = s.items.length
+          ? s.items.map(it => `<div><span class="text-slate-400">${it.name}:</span> <b class="text-amber-400">${fmt(it.val, it.unit, it.roundInt)}</b></div>`).join('')
+          : `<span class="text-slate-500">—</span>`;
+        return stageHeader + `
+          <tr onclick="toggleStep(${s.num})" class="cursor-pointer active:bg-slate-800/50 ${isDone ? 'opacity-40 line-through' : ''}">
+            <td class="py-2 pl-2.5 pr-1 font-bold text-amber-400 align-top">${s.num}</td>
+            <td class="py-2 px-2 align-top">
+              <div class="font-medium text-slate-100 leading-snug">${s.action}</div>
+              <div class="text-[10px] text-slate-400 mt-0.5">
+                ${s.stage} ${s.time ? `· 🕒 ${s.time}` : ''} ${s.warn ? `· <span class="text-rose-400">${s.warn}</span>` : ''}
+              </div>
+            </td>
+            <td class="py-2 pl-1 pr-2.5 text-right align-top text-[11px] leading-tight">${itemsText}</td>
+          </tr>`;
+      }).join('');
+    }
+
+    function switchTab(tab) {
+      ['checklist', 'steps', 'table'].forEach(t => {
+        document.getElementById(`tab-${t}`).classList.toggle('hidden', t !== tab);
+        const nav = document.getElementById(`nav-${t}`);
+        nav.className = `flex flex-col items-center justify-center font-medium text-xs ${t === tab ? 'text-amber-400' : 'text-slate-400'}`;
+      });
+    }
+
+    function playTimerBeep() {
+      try {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        const ctx = new Ctx();
+        [0, 0.25, 0.5].forEach(offset => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = 880;
+          gain.gain.setValueAtTime(0.25, ctx.currentTime + offset);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + offset + 0.18);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(ctx.currentTime + offset);
+          osc.stop(ctx.currentTime + offset + 0.18);
+        });
+      } catch (_) {}
+    }
+
+    function startTimer(minutes, label) {
+      clearInterval(timerInterval);
+      const endTime = Date.now() + minutes * 60 * 1000;
+      localStorage.setItem('plov_timer', JSON.stringify({ endTime, label }));
+      runTimerLoop();
+    }
+
+    function runTimerLoop() {
+      clearInterval(timerInterval);
+      const display = document.getElementById('timerDisplay');
+      const update = () => {
+        const saved = JSON.parse(localStorage.getItem('plov_timer') || 'null');
+        if (!saved) {
+          display.textContent = '00:00';
+          clearInterval(timerInterval);
+          return;
+        }
+        const remaining = Math.ceil((saved.endTime - Date.now()) / 1000);
+        if (remaining <= 0) {
+          clearInterval(timerInterval);
+          localStorage.removeItem('plov_timer');
+          display.textContent = `ГОТОВО: ${saved.label}!`;
+          playTimerBeep();
+          if (navigator.vibrate) navigator.vibrate([300, 150, 300]);
+          showToast(`⏰ Таймер «${saved.label}» завершён!`);
+          return;
+        }
+        const m = String(Math.floor(remaining / 60)).padStart(2, '0');
+        const s = String(remaining % 60).padStart(2, '0');
+        display.textContent = `${m}:${s} (${saved.label})`;
+      };
+      update();
+      timerInterval = setInterval(update, 500);
+    }
+
+    function stopTimer() {
+      clearInterval(timerInterval);
+      localStorage.removeItem('plov_timer');
+      document.getElementById('timerDisplay').textContent = '00:00';
+    }
+
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && localStorage.getItem('plov_timer')) {
+        runTimerLoop();
+      }
+    });
+
+    // Инициализация
+    setTableMode(tableMode);
+    setRiceWeight(currentRice);
+    if (localStorage.getItem('plov_timer')) {
+      runTimerLoop();
+    }
+  </script>
+</body>
+</html>
