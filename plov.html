@@ -41,33 +41,34 @@
           <label for="customRiceInput" class="text-xs text-slate-400">Рис (г):</label>
           <input id="customRiceInput" type="number" step="50" min="50" max="10000"
                  class="w-16 bg-transparent text-amber-400 font-bold text-sm text-right focus:outline-none"
-                 value="1250" oninput="setRiceWeight(this.value, true)" onblur="normalizeRiceInput()">
+                 value="600" oninput="setRiceWeight(this.value, true)" onblur="normalizeRiceInput()">
         </div>
       </div>
 
       <!-- Быстрые кнопки веса риса -->
-      <div class="grid grid-cols-6 gap-1 mb-2" id="presetButtons">
-        <button onclick="setRiceWeight(500)" data-val="500" class="preset-btn py-1.5 rounded text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700">500г</button>
-        <button onclick="setRiceWeight(750)" data-val="750" class="preset-btn py-1.5 rounded text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700">750г</button>
-        <button onclick="setRiceWeight(1000)" data-val="1000" class="preset-btn py-1.5 rounded text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700">1 кг</button>
-        <button onclick="setRiceWeight(1250)" data-val="1250" class="preset-btn py-1.5 rounded text-xs font-semibold bg-amber-500 text-slate-950 border border-amber-400">1.25кг</button>
-        <button onclick="setRiceWeight(1500)" data-val="1500" class="preset-btn py-1.5 rounded text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700">1.5кг</button>
-        <button onclick="setRiceWeight(2000)" data-val="2000" class="preset-btn py-1.5 rounded text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700">2 кг</button>
+      <div class="grid grid-cols-7 gap-1 mb-2" id="presetButtons">
+        <button onclick="setRiceWeight(500)" data-val="500" class="preset-btn py-1.5 rounded text-[11px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">500г</button>
+        <button onclick="setRiceWeight(600)" data-val="600" class="preset-btn py-1.5 rounded text-[11px] font-semibold bg-amber-500 text-slate-950 border border-amber-400">600г</button>
+        <button onclick="setRiceWeight(750)" data-val="750" class="preset-btn py-1.5 rounded text-[11px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">750г</button>
+        <button onclick="setRiceWeight(1000)" data-val="1000" class="preset-btn py-1.5 rounded text-[11px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">1 кг</button>
+        <button onclick="setRiceWeight(1250)" data-val="1250" class="preset-btn py-1.5 rounded text-[11px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">1.25кг</button>
+        <button onclick="setRiceWeight(1500)" data-val="1500" class="preset-btn py-1.5 rounded text-[11px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">1.5кг</button>
+        <button onclick="setRiceWeight(2000)" data-val="2000" class="preset-btn py-1.5 rounded text-[11px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">2 кг</button>
       </div>
 
       <!-- Сводка по выходу -->
       <div class="grid grid-cols-3 gap-1.5 bg-slate-950/80 rounded-lg p-1.5 border border-slate-800/80 text-center">
         <div>
           <div class="text-[10px] text-slate-400 uppercase">Сухая закладка</div>
-          <div class="text-xs font-bold text-slate-200" id="statDry">≈ 4.41 кг</div>
+          <div class="text-xs font-bold text-slate-200" id="statDry">≈ 2.12 кг</div>
         </div>
         <div class="border-x border-slate-800">
           <div class="text-[10px] text-slate-400 uppercase">Выход плова</div>
-          <div class="text-xs font-bold text-emerald-400" id="statYield">≈ 6.9 кг</div>
+          <div class="text-xs font-bold text-emerald-400" id="statYield">≈ 3.3 кг</div>
         </div>
         <div>
           <div class="text-[10px] text-slate-400 uppercase">Порции (300г)</div>
-          <div class="text-xs font-bold text-amber-400" id="statPortions">≈ 23 шт.</div>
+          <div class="text-xs font-bold text-amber-400" id="statPortions">≈ 11 шт.</div>
         </div>
       </div>
     </div>
@@ -177,7 +178,8 @@
 
   <script>
     const BASE_RICE = 1250;
-    let currentRice = Number(localStorage.getItem('plov_rice')) || 1250;
+    const urlRice = Number(new URLSearchParams(window.location.search).get('rice'));
+    let currentRice = (urlRice >= 50 && urlRice <= 10000) ? urlRice : (Number(localStorage.getItem('plov_rice_v2')) || 600);
     let checkedItems = JSON.parse(localStorage.getItem('plov_inventory') || '{}');
     let completedSteps = JSON.parse(localStorage.getItem('plov_steps') || '{}');
     let inventoryFilter = 'all';
@@ -272,7 +274,7 @@
       const parsed = parseFloat(val);
       if (!parsed || parsed < 50) return;
       currentRice = Math.min(10000, parsed);
-      localStorage.setItem('plov_rice', currentRice);
+      localStorage.setItem('plov_rice_v2', currentRice);
 
       if (!fromInput || parsed > 10000) {
         document.getElementById('customRiceInput').value = currentRice;
@@ -280,7 +282,7 @@
 
       document.querySelectorAll('.preset-btn').forEach(btn => {
         const isActive = Number(btn.dataset.val) === currentRice;
-        btn.className = `preset-btn py-1.5 rounded text-xs font-semibold border transition ${
+        btn.className = `preset-btn py-1.5 rounded text-[11px] font-semibold border transition ${
           isActive ? 'bg-amber-500 text-slate-950 border-amber-400' : 'bg-slate-800 text-slate-300 border-slate-700'
         }`;
       });
